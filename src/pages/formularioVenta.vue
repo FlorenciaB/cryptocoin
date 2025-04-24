@@ -46,6 +46,7 @@ export default {
 
   data() {
     return {
+      movimientos: [],
       formulario: {
         crypto_code: "",
         crypto_amount: "",
@@ -56,6 +57,34 @@ export default {
         tipoCambio: 0
       }
     };
+  },
+
+  created: async function () {
+    const userId = localStorage.getItem('user');
+    try {
+      const response = await apiClient.get('/transactions');
+      this.movimientos = response.data.filter(m => m.user_id === userId);
+    } catch (error) {
+      console.error('Error al cargar movimientos', error);
+    }
+  },
+
+  computed: {
+    // Propiedad computada que filtra las transacciones para el crypto seleccionado
+    movimientosFiltrados() {
+      return this.movimientos.filter(m => m.crypto_code === this.formulario.crypto_code);
+    },
+
+    // Propiedad computada que calcula el saldo disponible para la criptomoneda seleccionada
+    saldoDisponible() {
+      const saldo = this.movimientosFiltrados.reduce((acc, mov) => {
+        const cantidad = parseFloat(mov.crypto_amount);
+        if (mov.action === 'purchase') return acc + cantidad;
+        if (mov.action === 'sale') return acc - cantidad;
+        return acc;
+      }, 0);
+      return Math.max(saldo, 0); // Evitar saldo negativo
+    }
   },
 
   methods: {
@@ -102,11 +131,25 @@ export default {
 
     async formularioVenta() {
       try {
-        const response = await apiClient.post('/transactions', this.formulario);
-        alert(`Venta registrada con éxito: ${JSON.stringify(response.data.user_id)}`);
+        const crypto = this.formulario.crypto_code;
+        const cantidadVenta = parseFloat(this.formulario.crypto_amount);
+
+        const saldoActual = this.saldoDisponible;
+        console.log(`Saldo actual de ${crypto}: ${saldoActual}`);
+        console.log(`Intentás vender: ${cantidadVenta}`);
+
+        if (cantidadVenta > saldoActual || saldoActual <= 0) {
+          alert(`No tenés suficiente ${crypto} para vender. Tu saldo es ${saldoActual.toFixed(8)}.`);
+          return;
+        }
+
+        // Si el saldo alcanza, registrar la venta
+        const postResponse = await apiClient.post('/transactions', this.formulario);
+        console.log('Venta confirmada:', postResponse.data);
+        alert(`✅ Venta registrada con éxito para el usuario ${postResponse.data.user_id}`);
       } catch (error) {
-        console.error('Error al registrar la venta:', error);
-        alert('Error al registrar la venta. Por favor, inténtelo de nuevo.');
+        console.error('❌ Error al registrar la venta:', error);
+        alert('Hubo un error al registrar la venta. Intentá de nuevo.');
       }
     }
   },
@@ -116,6 +159,7 @@ export default {
   }
 }
 </script>
+
 
 <style scoped>
 /* Estilos para el formulario */

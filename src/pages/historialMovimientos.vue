@@ -1,50 +1,58 @@
 <template>
-    <nav>
-      <menuNavegacion />
-    </nav>
-    <div class="container">
-      <h2>Listado de Movimientos</h2>
-      <div class="movimientos-grid">
-        <div class="header">Criptomoneda</div>
-        <div class="header">Cantidad</div>
-        <div class="header">Monto (ARS)</div>
-        <div class="header">Acción</div>
-        <div class="header">Fecha y Hora</div>
-        <div class="header">Acciones</div>
-  
-        <!-- Mostrar cada movimiento en una fila completa -->
-        <div v-for="movimiento in movimientos" :key="movimiento._id" class="grid-item">
-          <p>{{ mapCryptoCode(movimiento.crypto_code) }}</p>
-          <p>{{ movimiento.crypto_amount }}</p>
-          <p>{{ movimiento.money }}</p>
-          <p>{{ mapAction(movimiento.action) }}</p>
-          <p>{{ movimiento.datetime }}</p>
-          <div class="action-buttons">
-            <button class="btn-edit" @click="logId(movimiento._id, movimiento.datetime)">
-              <router-link :to="{ name: 'formularioEditar', params: { id: movimiento._id, datatime: movimiento.datetime } }" class="nav-link">Editar</router-link>
-            </button>
-            <button class="btn-delete" @click="confirmaElimina(movimiento._id)">Eliminar</button>
-          </div>
+  <nav>
+    <menuNavegacion />
+  </nav>
+
+  <div class="container mt-4">
+    <h2>Listado de Movimientos</h2>
+
+    <!-- Mostrar spinner mientras se cargan los movimientos -->
+    <div v-if="loading" class="mt-3">
+      <LoadingSpinner />
+    </div>
+
+    <!-- Mostrar la tabla de movimientos solo cuando loading es false -->
+    <div v-else class="movimientos-grid">
+      <div class="header">Criptomoneda</div>
+      <div class="header">Cantidad</div>
+      <div class="header">Monto (ARS)</div>
+      <div class="header">Acción</div>
+      <div class="header">Fecha y Hora</div>
+      <div class="header">Acciones</div>
+
+      <div v-for="movimiento in movimientos" :key="movimiento._id" class="grid-item">
+        <p>{{ mapCryptoCode(movimiento.crypto_code) }}</p>
+        <p>{{ movimiento.crypto_amount }}</p>
+        <p>{{ movimiento.money }}</p>
+        <p>{{ mapAction(movimiento.action) }}</p>
+        <p>{{ movimiento.datetime }}</p>
+        <div class="action-buttons">
+          <button class="btn-edit">
+            <router-link :to="{ name: 'formularioEditar', params: { id: movimiento._id, datatime: movimiento.datetime } }" class="nav-link">Editar</router-link>
+          </button>
+          <button class="btn-delete" @click="confirmaElimina(movimiento._id)">Eliminar</button>
         </div>
       </div>
     </div>
-  </template>
-
-
+  </div>
+</template>
 
 <script>
 import menuNavegacion from '@/components/menuNavegacion.vue';
 import { apiClient } from "@/axios";
+import LoadingSpinner from '@/components/LoadingSpinner.vue';
 
 export default {
   name: 'historialMovimientos',
 
   components: {
-    menuNavegacion
+    menuNavegacion,
+    LoadingSpinner
   },
 
   data() {
     return {
+      loading: true, // Activo al inicio
       movimientos: []
     };
   },
@@ -55,12 +63,11 @@ export default {
     },
 
     mapCryptoCode(crypto_code) {
-    const mapping = {
+      const mapping = {
         'BTC': 'Bitcoin',
         'ETH': 'Ethereum',
         'LTC': 'Litecoin',
       };
-
       return mapping[crypto_code] || crypto_code;
     },
 
@@ -92,18 +99,17 @@ export default {
 
   async created() {
     try {
-      
       const userId = localStorage.getItem('user');
       const response = await apiClient.get('/transactions');
       const todosLosMovimientos = response.data;
-
       this.movimientos = todosLosMovimientos.filter(movimiento => movimiento.user_id === userId);
-
     } catch (error) {
       console.error('Error al obtener los movimientos:', error);
       alert('Error al obtener los movimientos. Por favor, inténtelo de nuevo.');
+    } finally {
+      this.loading = false; // Ocultar spinner cuando termina
     }
-  },
+  }
 }
 </script>
 

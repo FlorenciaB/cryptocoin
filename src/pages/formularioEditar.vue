@@ -4,8 +4,16 @@
   </nav>
 
   <div class="container mt-4">
+    <!-- El título siempre visible -->
     <h2>Editar Cryptocompra</h2>
-    <form @submit.prevent="formularioEditar" class="formularioEditar">
+
+    <!-- Mostrar spinner mientras carga -->
+    <div v-if="loading" class="mt-3">
+      <LoadingSpinner />
+    </div>
+
+    <!-- Mostrar formulario solo cuando loading es false -->
+    <form v-else @submit.prevent="formularioEditar" class="formularioEditar">
       <div class="mb-3">
         <label for="crypto" class="form-label">Editar Cryptocompra</label>
         <input type="text" class="form-control" id="crypto" v-model="formulario.crypto_code" readonly>
@@ -42,16 +50,19 @@
 <script>
 import menuNavegacion from '@/components/menuNavegacion.vue';
 import { apiCriptoya, apiClient } from "@/axios";
+import LoadingSpinner from '@/components/LoadingSpinner.vue';
 
 export default {
   name: 'formularioEditar',
 
   components: {
-    menuNavegacion
+    menuNavegacion,
+    LoadingSpinner
   },
-  
+
   data() {
     return {
+      loading: true,
       formulario: {
         _id: "",
         crypto_code: "",
@@ -68,7 +79,6 @@ export default {
     try {
       const id = this.$route.params.id;
       if (!id) {
-        console.error('ID no proporcionado');
         alert('ID no proporcionado');
         return;
       }
@@ -77,14 +87,14 @@ export default {
       if (response.status === 200) {
         this.formulario = response.data;
         this.formulario.datetime = this.getCurrentDateTime();
-        await this.actualizacionPesoArgentino(); // Actualiza el tipo de cambio y realiza el cálculo inicial
+        await this.actualizacionPesoArgentino();
       } else {
-        console.error('Transacción no encontrada');
         alert('Transacción no encontrada');
       }
     } catch (error) {
-      console.error('Error al obtener la transacción:', error);
-      alert('Error al obtener la transacción. Por favor, inténtelo de nuevo.');
+      alert('Error al obtener la transacción.');
+    } finally {
+      this.loading = false;
     }
   },
 
@@ -100,44 +110,27 @@ export default {
     },
 
     mapCryptoNameToSymbol(name) {
-    const mapping = {
-      'bitcoin': 'BTC',
-      'ethereum': 'ETH',
-      'litecoin': 'LTC',
-    };
-    return mapping[name] || name;
-  },
+      const mapping = {
+        'bitcoin': 'BTC',
+        'ethereum': 'ETH',
+        'litecoin': 'LTC',
+      };
+      return mapping[name] || name;
+    },
 
     async actualizacionPesoArgentino() {
       try {
-        
-        let cryptoName = this.formulario.crypto_code;
-        let cryptoCode = this.mapCryptoNameToSymbol(cryptoName);
-
-        console.log('cryptoCode en actualizacionPesoArgentino:', cryptoCode); 
-
-        if (!cryptoCode) {
-          console.error('CriptoCode no definido');
-          return;
-        }
+        let cryptoCode = this.mapCryptoNameToSymbol(this.formulario.crypto_code);
         const response = await apiCriptoya.get(`/binance/${cryptoCode}/ARS/1`);
 
-        if (response.status === 200 && response.data) {
-          const exchangeRate = response.data.ask;
-          if (exchangeRate) {
-            this.formulario.tipoCambio = exchangeRate;
-            this.calculoTotal();
-          } else {
-            console.error('API response does not contain the exchange rate');
-            alert('No se pudo obtener el tipo de cambio. Verifique la API o la criptomoneda.');
-          }
+        if (response.status === 200 && response.data?.ask) {
+          this.formulario.tipoCambio = response.data.ask;
+          this.calculoTotal();
         } else {
-          console.error('Error fetching exchange rate:', response.statusText);
-          alert('Error al obtener el tipo de cambio. Inténtelo de nuevo.');
+          alert('No se pudo obtener el tipo de cambio.');
         }
       } catch (error) {
-        console.error('Error during API call:', error);
-        alert('Error al obtener el tipo de cambio. Inténtelo de nuevo.');
+        alert('Error al obtener el tipo de cambio.');
       }
     },
 
@@ -153,11 +146,9 @@ export default {
       try {
         const { _id, crypto_amount, datetime, money, action } = this.formulario;
         const response = await apiClient.patch(`/transactions/${_id}`, {
-          crypto_amount,
-          datetime,
-          money,
-          action
+          crypto_amount, datetime, money, action
         });
+
         if (response.status === 200) {
           alert('Transacción actualizada con éxito');
           this.$router.push('/historialMovimientos');
@@ -165,13 +156,13 @@ export default {
           throw new Error('Error al actualizar la transacción');
         }
       } catch (error) {
-        console.error('Error al actualizar la transacción:', error);
-        alert('Error al actualizar la transacción. Por favor, inténtelo de nuevo.');
+        alert('Error al actualizar la transacción.');
       }
     }
   },
+
   watch: {
-    'formulario.crypto_amount': 'calculoTotal' // Recalcula cuando cambia la cantidad
+    'formulario.crypto_amount': 'calculoTotal'
   }
 }
 </script>
